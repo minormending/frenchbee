@@ -14,6 +14,11 @@ session = CachedSession(
     use_cache_dir=True,
     expire_after=timedelta(days=1),
 )
+session.proxies = {
+    "http": "http://127.0.0.1:8888",
+    "https": "http://127.0.0.1:8888",
+}
+session.verify = False
 
 
 @dataclass
@@ -81,6 +86,8 @@ class FrenchBee:
         return [FrenchBeeResponse(**i) for i in response.json()]
 
     def _normalize_response(self, response: dict) -> Dict[datetime, Flight]:
+        if not response:
+            return None
         normalize = {}
         for year_str, months in response.items():
             year = int(year_str)
@@ -105,7 +112,11 @@ class FrenchBee:
             filter(lambda i: i.args[0] == "departureCalendarPriceIsReady", payload),
             None,
         )
-        return self._normalize_response(info.args[1]["departure"]) if info else None
+        return (
+            self._normalize_response(info.args[1]["departure"])
+            if len(info.args) < 2 or info.args[1]
+            else None
+        )
 
     def get_return_availability(
         self,
@@ -124,7 +135,11 @@ class FrenchBee:
         info = next(
             filter(lambda i: i.args[0] == "returnCalendarPriceIsReady", payload), None
         )
-        return self._normalize_response(info.args[1]["return"]) if info else None
+        return (
+            self._normalize_response(info.args[1]["return"])
+            if len(info.args) < 2 or info.args[1]
+            else None
+        )
 
     def get_departure_info_for(
         self, source: str, destination: str, passengers: PassengerInfo, date: datetime
@@ -148,8 +163,11 @@ if __name__ == "__main__":
     passengers = PassengerInfo(Adults=1)
     client = FrenchBee()
     departure = client.get_departure_info_for(
-        "EWR", "ORY", passengers, datetime(2022, 10, 6)
+        "EWE", "ORY", passengers, datetime(2022, 10, 6)
     )
+    if not departure:
+        print("No routes!")
+        exit(1)
     pprint(departure)
 
     returns = client.get_return_info_for(
