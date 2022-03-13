@@ -163,7 +163,7 @@ if __name__ == "__main__":
     passengers = PassengerInfo(Adults=1)
     client = FrenchBee()
     departure = client.get_departure_info_for(
-        "EWE", "ORY", passengers, datetime(2022, 10, 6)
+        "EWR", "ORY", passengers, datetime(2022, 10, 6)
     )
     if not departure:
         print("No routes!")
