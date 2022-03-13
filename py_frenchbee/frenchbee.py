@@ -22,16 +22,20 @@ class PassengerInfo:
     Children: int = 0
     Infants: int = 0
 
+
 @dataclass
 class FrenchBeeResponse:
     command: str
     selector: str
     method: str
-    args: List[Union[str, dict]] # dict(departure => [year => { month => { day => { data... }} }])
+    args: List[
+        Union[str, dict]
+    ]  # dict(departure => [year => { month => { day => { data... }} }])
+
 
 @dataclass
 class Flight:
-    arrival_airport : str
+    arrival_airport: str
     currency: str
     day: datetime
     departure_airport: str
@@ -43,7 +47,12 @@ class Flight:
 
 class FrenchBee:
     def _make_request(
-        self, source: str, destination: str, passengers: PassengerInfo, departure_date: datetime, module: str
+        self,
+        source: str,
+        destination: str,
+        passengers: PassengerInfo,
+        departure_date: datetime,
+        module: str,
     ) -> List[FrenchBeeResponse]:
         url = "https://us.frenchbee.com/en?ajax_form=1"
         payload = {
@@ -51,9 +60,11 @@ class FrenchBee:
             "visible_newsearch_flights_from": source,
             "visible_newsearch_flights_to": destination,
             "newsearch_flights_travel_type": "R",
-            "newsearch_flights_from":source,
+            "newsearch_flights_from": source,
             "newsearch_flights_to": destination,
-            "newsearch_flights_departure_date":f"{departure_date:%Y-%m-%d}" if departure_date else "",
+            "newsearch_flights_departure_date": f"{departure_date:%Y-%m-%d}"
+            if departure_date
+            else "",
             "adults-count": passengers.Adults,
             "children-count": passengers.Children,
             "infants-count": passengers.Infants,
@@ -80,30 +91,72 @@ class FrenchBee:
                     normalize[datetime(year, month, day)] = Flight(**day_response)
         return normalize
 
-    def get_departure_availability(self, source: str, destination: str, passengers: PassengerInfo) -> dict:
-        payload = self._make_request(source, destination, passengers, departure_date=None, module="visible_newsearch_flights_to")
-        info = next(filter(lambda i: i.args[0] == 'departureCalendarPriceIsReady', payload), None)
-        return self._normalize_response(info.args[1]['departure']) if info else None
+    def get_departure_availability(
+        self, source: str, destination: str, passengers: PassengerInfo
+    ) -> Dict[datetime, Flight]:
+        payload = self._make_request(
+            source,
+            destination,
+            passengers,
+            departure_date=None,
+            module="visible_newsearch_flights_to",
+        )
+        info = next(
+            filter(lambda i: i.args[0] == "departureCalendarPriceIsReady", payload),
+            None,
+        )
+        return self._normalize_response(info.args[1]["departure"]) if info else None
 
-    def get_return_availability(self, source: str, destination: str, passengers: PassengerInfo, departure: datetime) -> dict:
-        payload = self._make_request(source, destination, passengers, departure_date=departure, module="visible_newsearch_flights_departure_date")
-        info = next(filter(lambda i: i.args[0] == 'returnCalendarPriceIsReady', payload), None)
-        return self._normalize_response(info.args[1]['return']) if info else None
+    def get_return_availability(
+        self,
+        source: str,
+        destination: str,
+        passengers: PassengerInfo,
+        departure: datetime,
+    ) -> Dict[datetime, Flight]:
+        payload = self._make_request(
+            source,
+            destination,
+            passengers,
+            departure_date=departure,
+            module="visible_newsearch_flights_departure_date",
+        )
+        info = next(
+            filter(lambda i: i.args[0] == "returnCalendarPriceIsReady", payload), None
+        )
+        return self._normalize_response(info.args[1]["return"]) if info else None
 
-    def get_departure_info_for(self, source: str, destination: str, passengers: PassengerInfo, date: datetime) -> dict:
+    def get_departure_info_for(
+        self, source: str, destination: str, passengers: PassengerInfo, date: datetime
+    ) -> dict:
         info = self.get_departure_availability(source, destination, passengers)
         return info.get(date, None) if info else None
 
-    def get_return_info_for(self, source: str, destination: str, passengers: PassengerInfo, departure: datetime, date: datetime) -> dict:
+    def get_return_info_for(
+        self,
+        source: str,
+        destination: str,
+        passengers: PassengerInfo,
+        departure: datetime,
+        date: datetime,
+    ) -> dict:
         info = self.get_return_availability(source, destination, passengers, departure)
         return info.get(date, None) if info else None
-    
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     passengers = PassengerInfo(Adults=1)
     client = FrenchBee()
-    prices = client.get_departure_info_for("EWR", "ORY", passengers, datetime(2022,10,6))
-    pprint(prices)
+    departure = client.get_departure_info_for(
+        "EWR", "ORY", passengers, datetime(2022, 10, 6)
+    )
+    pprint(departure)
 
-    prices = client.get_return_info_for("EWR", "ORY", passengers, datetime(2022,10,6), datetime(2022,10,10))
-    pprint(prices)
+    returns = client.get_return_info_for(
+        "EWR", "ORY", passengers, datetime(2022, 10, 6), datetime(2022, 10, 10)
+    )
+    pprint(returns)
+
+    print(
+        f"Total price: ${departure.price + returns.price} for {departure.day} to {returns.day}"
+    )
