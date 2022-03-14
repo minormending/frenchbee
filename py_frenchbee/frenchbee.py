@@ -1,24 +1,7 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from pprint import pprint
+from datetime import datetime
 import requests
-from typing import List, Union, Mapping, Dict
-
-
-from requests_cache import CachedSession
-
-
-session = CachedSession(
-    cache_name="frenchbee_cache",
-    backend="filesystem",
-    use_cache_dir=True,
-    expire_after=timedelta(days=1),
-)
-session.proxies = {
-    "http": "http://127.0.0.1:8888",
-    "https": "http://127.0.0.1:8888",
-}
-session.verify = False
+from typing import List, Union, Dict
 
 
 @dataclass
@@ -51,6 +34,14 @@ class Flight:
 
 
 class FrenchBee:
+    def __init__(self) -> None:
+        self.session = requests.Session()
+        self.session.headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
+            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Cookie": "base_host=frenchbee.com; market_lang=en; site_origin=us.frenchbee.com",
+        }
+
     def _make_request(
         self,
         source: str,
@@ -77,12 +68,7 @@ class FrenchBee:
             "form_id": "frenchbee-amadeus-search-flights-form",
             "_triggering_element_name": module,
         }
-        headers = {
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
-            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Cookie": "base_host=frenchbee.com; market_lang=en; site_origin=us.frenchbee.com",
-        }
-        response = session.request("POST", url, headers=headers, data=payload)
+        response = self.session.post(url, data=payload)
         return [FrenchBeeResponse(**i) for i in response.json()]
 
     def _normalize_response(self, response: dict) -> Dict[datetime, Flight]:
@@ -160,6 +146,8 @@ class FrenchBee:
 
 
 if __name__ == "__main__":
+    from pprint import pprint
+
     passengers = PassengerInfo(Adults=1)
     client = FrenchBee()
     departure = client.get_departure_info_for(
