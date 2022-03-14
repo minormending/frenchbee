@@ -1,3 +1,4 @@
+from ast import parse
 from dataclasses import dataclass
 from datetime import datetime
 import requests
@@ -51,6 +52,7 @@ class FrenchBee:
         module: str,
     ) -> List[FrenchBeeResponse]:
         url = "https://us.frenchbee.com/en?ajax_form=1"
+        departure_date_str = f"{departure_date:%Y-%m-%d}" if departure_date else ""
         payload = {
             "visible_newsearch_flights_travel_type": "R",
             "visible_newsearch_flights_from": source,
@@ -58,9 +60,7 @@ class FrenchBee:
             "newsearch_flights_travel_type": "R",
             "newsearch_flights_from": source,
             "newsearch_flights_to": destination,
-            "newsearch_flights_departure_date": f"{departure_date:%Y-%m-%d}"
-            if departure_date
-            else "",
+            "newsearch_flights_departure_date": departure_date_str,
             "adults-count": passengers.Adults,
             "children-count": passengers.Children,
             "infants-count": passengers.Infants,
@@ -146,23 +146,47 @@ class FrenchBee:
 
 
 if __name__ == "__main__":
-    from pprint import pprint
+    import argparse
 
-    passengers = PassengerInfo(Adults=1)
+    parser = argparse.ArgumentParser(description="Get French Bee airline prices.")
+    parser.add_argument("origin", help="Origin airport.")
+    parser.add_argument(
+        "departure_date",
+        type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
+        help="Departure date from origin airport. YYYY-mm-dd",
+    )
+    parser.add_argument("destination", help="Destination airport.")
+    parser.add_argument(
+        "return_date",
+        type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
+        help="Return date from destination airport. YYYY-mm-dd",
+    )
+    parser.add_argument(
+        "--passengers", type=int, default=1, help="Number of adult passengers. default=1"
+    )
+    parser.add_argument(
+        "--children", type=int, default=0, help="Number of child passengers. default=0"
+    )
+
+    args = parser.parse_args()
+
+    passengers = PassengerInfo(Adults=args.passengers, Children=args.children)
+
     client = FrenchBee()
-    departure = client.get_departure_info_for(
-        "EWR", "ORY", passengers, datetime(2022, 10, 6)
+    departure_info = client.get_departure_info_for(
+        args.origin, args.destination, passengers, args.departure_date
     )
-    if not departure:
-        print("No routes!")
-        exit(1)
-    pprint(departure)
-
-    returns = client.get_return_info_for(
-        "EWR", "ORY", passengers, datetime(2022, 10, 6), datetime(2022, 10, 10)
-    )
-    pprint(returns)
-
-    print(
-        f"Total price: ${departure.price + returns.price} for {departure.day} to {returns.day}"
-    )
+    if departure_info:
+        print(departure_info)
+        return_info = client.get_return_info_for(
+            args.origin,
+            args.destination,
+            passengers,
+            args.departure_date,
+            args.return_date,
+        )
+        if return_info:
+            print(return_info)
+            print(
+                f"Total price: ${departure_info.price + return_info.price} for {departure_info.day} to {return_info.day}"
+            )
