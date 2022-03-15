@@ -129,7 +129,7 @@ class FrenchBee:
 
     def get_departure_info_for(
         self, source: str, destination: str, passengers: PassengerInfo, date: datetime
-    ) -> dict:
+    ) -> Flight:
         info = self.get_departure_availability(source, destination, passengers)
         return info.get(date, None) if info else None
 
@@ -140,7 +140,7 @@ class FrenchBee:
         passengers: PassengerInfo,
         departure: datetime,
         date: datetime,
-    ) -> dict:
+    ) -> Flight:
         info = self.get_return_availability(source, destination, passengers, departure)
         return info.get(date, None) if info else None
 
