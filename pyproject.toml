@@ -3,6 +3,11 @@ name = "py-frenchbee"
 version = "0.1.0"
 description = "Python client for finding French Bee airline prices."
 authors = ["Kevin Ramdath <krpent@gmail.com>"]
+readme = "README.md"
+license = "MIT"
+include = [
+    "LICENSE",
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
