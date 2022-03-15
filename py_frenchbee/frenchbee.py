@@ -188,5 +188,7 @@ if __name__ == "__main__":
         if return_info:
             print(return_info)
             print(
-                f"Total price: ${departure_info.price + return_info.price} for {departure_info.day} to {return_info.day}"
+                f"Total price: ${departure_info.price + return_info.price} " +
+                f"for {departure_info.day} to {return_info.day} " + 
+                f"from {departure_info.departure_airport} to {return_info.departure_airport}"
             )
