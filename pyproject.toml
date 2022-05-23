@@ -1,13 +1,12 @@
 [tool.poetry]
-name = "py-frenchbee"
+name = "frenchbee"
 version = "0.1.0"
 description = "Python client for finding French Bee airline prices."
 authors = ["Kevin Ramdath <krpent@gmail.com>"]
+repository = "https://github.com/minormending/frenchbee"
 readme = "README.md"
 license = "MIT"
-include = [
-    "LICENSE",
-]
+keywords = ["frenchbee", "flights", "travel"]
 
 [tool.poetry.dependencies]
 python = "^3.8"

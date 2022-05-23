@@ -1,4 +1,3 @@
-from ast import parse
 from dataclasses import dataclass
 from datetime import datetime
 import requests

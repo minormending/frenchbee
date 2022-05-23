@@ -1,7 +1,7 @@
 FROM python:3.8
 
 RUN mkdir /app 
-COPY py_frenchbee/ /app
+COPY frenchbee/ /app
 COPY pyproject.toml /app 
 WORKDIR /app
 

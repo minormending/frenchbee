@@ -1,4 +1,4 @@
-# py-frenchbee
+# French Bee
 Python client for finding French Bee airline prices.
 
 # Usage
