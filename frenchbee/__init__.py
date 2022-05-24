@@ -1,3 +1,3 @@
 from .frenchbee import FrenchBee
-from data import FrenchBeeData
+from .data import FrenchBeeData
 from .models import Flight, PassengerInfo, Airport
