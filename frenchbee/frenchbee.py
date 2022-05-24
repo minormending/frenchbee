@@ -27,7 +27,7 @@ class FrenchBee:
             "Cookie": "base_host=frenchbee.com; market_lang=en; site_origin=us.frenchbee.com",
         }
 
-    def _make_request(
+    def _make_search_request(
         self,
         source: str,
         destination: str,
@@ -82,7 +82,7 @@ class FrenchBee:
     def get_departure_availability(
         self, source: str, destination: str, passengers: PassengerInfo
     ) -> Dict[datetime, Flight]:
-        payload: List[FrenchBeeResponse] = self._make_request(
+        payload: List[FrenchBeeResponse] = self._make_search_request(
             source,
             destination,
             passengers,
@@ -106,7 +106,7 @@ class FrenchBee:
         passengers: PassengerInfo,
         departure: datetime,
     ) -> Dict[datetime, Flight]:
-        payload: List[FrenchBeeResponse] = self._make_request(
+        payload: List[FrenchBeeResponse] = self._make_search_request(
             source,
             destination,
             passengers,
