@@ -1,17 +1,12 @@
-from dataclasses import dataclass
-from typing import Iterable, List
+from typing import Iterable
 from bs4 import BeautifulSoup, ResultSet, Tag
 from requests import Response, Session
+
+from .models import Airport
 
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
-@dataclass
-class Airport:
-    code: str
-    name: str
 
 
 class FrenchBeeData:
