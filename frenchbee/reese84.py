@@ -2,9 +2,6 @@ from time import time
 from typing import Any, Dict
 from requests import Response, Session
 
-import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class FrenchBeeReese84:
     """
@@ -19,8 +16,6 @@ class FrenchBeeReese84:
             "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
             "Cookie": "base_host=frenchbee.com; market_lang=en; site_origin=us.frenchbee.com",
         }
-        self.session.proxies = {"http": "127.0.0.1:8888", "https": "127.0.0.1:8888"}
-        self.session.verify = False
 
     def _get_payload(self) -> Dict[str, str]:
         return {
