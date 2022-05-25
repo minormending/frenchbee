@@ -1,8 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
+from http import cookies
 from requests import Session, Response
-from typing import Any, List, Union, Dict
+from requests.cookies import create_cookie
+from typing import Any, List, Tuple, Union, Dict
+import re
+import html
 
+from .reese84 import FrenchBeeReese84
 from .models import PassengerInfo, Flight
 
 
@@ -16,6 +21,7 @@ class FrenchBeeResponse:
     args: List[
         Union[str, dict]
     ]  # dict(departure => [year => { month => { day => { data... }} }])
+    data: str
 
 
 class FrenchBee:
@@ -24,8 +30,10 @@ class FrenchBee:
         self.session.headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
             "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Cookie": "base_host=frenchbee.com; market_lang=en; site_origin=us.frenchbee.com",
         }
+        self.session.cookies["base_host"] = "frenchbee.com"
+        self.session.cookies["market_lang"] = "en"
+        self.session.cookies["site_origin"] = "us.frenchbee.com"
 
     def _make_search_request(
         self,
@@ -33,11 +41,13 @@ class FrenchBee:
         destination: str,
         passengers: PassengerInfo,
         departure: datetime,
+        returns: datetime,
         module: str,
     ) -> List[FrenchBeeResponse]:
         url: str = "https://us.frenchbee.com/en?ajax_form=1"
         departure_date: str = f"{departure:%Y-%m-%d}" if departure else ""
-        payload: Dict[str, str] = {
+        return_date: str = f"{returns:%Y-%m-%d}" if returns else ""
+        payload: Dict[str, Any] = {
             "visible_newsearch_flights_travel_type": "R",
             "visible_newsearch_flights_from": source,
             "visible_newsearch_flights_to": destination,
@@ -45,6 +55,7 @@ class FrenchBee:
             "newsearch_flights_from": source,
             "newsearch_flights_to": destination,
             "newsearch_flights_departure_date": departure_date,
+            "newsearch_flights_return_date": return_date,
             "adults-count": passengers.Adults,
             "children-count": passengers.Children,
             "infants-count": passengers.Infants,
@@ -53,7 +64,16 @@ class FrenchBee:
             "_triggering_element_name": module,
         }
         response: Response = self.session.post(url, data=payload)
-        return [FrenchBeeResponse(**i) for i in response.json()]
+        return [
+            FrenchBeeResponse(
+                command=resp.get("command"),
+                method=resp.get("method"),
+                selector=resp.get("selector"),
+                args=resp.get("args") or [],
+                data=resp.get("data"),
+            )
+            for resp in response.json()
+        ]
 
     def _normalize_response(self, response: Dict[str, Any]) -> Dict[datetime, Flight]:
         if not response:
@@ -87,6 +107,7 @@ class FrenchBee:
             destination,
             passengers,
             departure=None,
+            returns=None,
             module="visible_newsearch_flights_to",
         )
         info: FrenchBeeResponse = next(
@@ -111,6 +132,7 @@ class FrenchBee:
             destination,
             passengers,
             departure=departure,
+            returns=None,
             module="visible_newsearch_flights_departure_date",
         )
         info: FrenchBeeResponse = next(
@@ -142,3 +164,42 @@ class FrenchBee:
             source, destination, passengers, departure
         )
         return info.get(date) if info else None
+
+    def get_flight_times(
+        self,
+        source: str,
+        destination: str,
+        passengers: PassengerInfo,
+        departure: datetime,
+        returns: datetime,
+    ) -> Dict[datetime, Flight]:
+        payload: List[FrenchBeeResponse] = self._make_search_request(
+            source,
+            destination,
+            passengers,
+            departure=departure,
+            returns=returns,
+            module="op",
+        )
+        resp: FrenchBeeResponse = next(
+            filter(lambda i: i.command == "insert", payload), None
+        )
+
+        form_match: re.Match = re.search(
+            '\<form[^\>]*action="([^"]+)"[^\>]*>', resp.data
+        )
+        if not form_match:
+            return
+        form_url: str = form_match.group(1)
+
+        input_match: List[Tuple[str, str]] = re.findall(
+            '\<input[^\>]*name="([^"]+)"[^\>]*value="([^"]+)"[^\>]*>', resp.data
+        )
+        form_inputs: Dict[str, str] = {key: value for key, value in input_match}
+        if "EXTERNAL_ID" in form_inputs:
+            form_inputs["EXTERNAL_ID"] = html.unescape(form_inputs["EXTERNAL_ID"])
+
+        reese84: FrenchBeeReese84 = FrenchBeeReese84()
+        token: str = reese84.token()
+        self.session.cookies.set("reese84", token, domain="vols.frenchbee.com")
+        response: Response = self.session.post(form_url, data=form_inputs)
