@@ -8,12 +8,12 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Get French Bee airline prices.")
     parser.add_argument("origin", help="Origin airport.")
+    parser.add_argument("destination", help="Destination airport.")
     parser.add_argument(
         "departure_date",
         type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
         help="Departure date from origin airport. YYYY-mm-dd",
     )
-    parser.add_argument("destination", help="Destination airport.")
     parser.add_argument(
         "return_date",
         type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
@@ -52,6 +52,14 @@ def main() -> None:
                 f"Total price: ${departure_info.price + return_info.price} "
                 + f"for {departure_info.day} to {return_info.day} "
                 + f"from {departure_info.departure_airport} to {return_info.departure_airport}"
+            )
+
+            client.get_flight_times(
+                args.origin,
+                args.destination,
+                passengers,
+                args.departure_date,
+                args.return_date,
             )
 
 
