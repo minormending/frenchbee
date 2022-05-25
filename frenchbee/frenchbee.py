@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
-from http import cookies
+import json
+import demjson3
 from requests import Session, Response
-from requests.cookies import create_cookie
 from typing import Any, List, Tuple, Union, Dict
 import re
 import html
@@ -203,3 +203,30 @@ class FrenchBee:
         token: str = reese84.token()
         self.session.cookies.set("reese84", token, domain="vols.frenchbee.com")
         response: Response = self.session.post(form_url, data=form_inputs)
+        
+        html_body: str = response.text
+        script_start: str = "PlnextPageProvider.init("
+        script_end: str = "pageEngine"
+
+        idx_start: int = html_body.index(script_start) + len(script_start)
+        idx_start = html_body.index("config", idx_start) # outer layer is not valid JSON
+        idx_start = html_body.index("{", idx_start)
+
+        idx_end: int = html_body.index(script_end, idx_start)
+        idx_end = html_body.rindex("}", idx_start, idx_end) + 1 # walk backwards to find the end
+
+        script: str = html_body[idx_start:idx_end]
+        with open("s.json", "w") as f:
+            f.write(script)
+
+        init = json.loads(script)
+        with open("s.json", "w") as f:
+            f.write(json.dumps(init, indent=4, sort_keys=True))
+
+        
+        
+        """re_script = "PlnextPageProvider\.init\(({.*?,\s*?onePageNavEnabled\s*?:\s*?true\s*?})\)"
+        script_match = re.search(re_script, response.text)
+        if script_match:
+                """
+
