@@ -12,6 +12,7 @@ keywords = ["frenchbee", "flights", "travel"]
 python = "^3.8"
 requests = "^2.27.1"
 beautifulsoup4 = "^4.11.1"
+jsonpath-ng = "^1.5.3"
 
 [tool.poetry.dev-dependencies]
 black = "^22.1.0"
