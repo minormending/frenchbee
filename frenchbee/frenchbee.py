@@ -8,7 +8,7 @@ import html
 import jsonpath_ng as jsonpath
 
 from .reese84 import FrenchBeeReese84
-from .models import PassengerInfo, Flight
+from .models import PassengerInfo, Flight, DateAndLocation, Trip
 
 
 
@@ -99,13 +99,11 @@ class FrenchBee:
                     normalize[datetime(year, month, day)] = Flight(**flight)
         return normalize
 
-    def get_departure_availability(
-        self, source: str, destination: str, passengers: PassengerInfo
-    ) -> Dict[datetime, Flight]:
+    def get_departure_availability(self, trip: Trip) -> Dict[datetime, Flight]:
         payload: List[FrenchBeeResponse] = self._make_search_request(
-            source,
-            destination,
-            passengers,
+            source=trip.departure.location.code,
+            destination=trip.returns.location.code,
+            passengers=trip.passengers,
             departure=None,
             returns=None,
             module="visible_newsearch_flights_to",
@@ -120,18 +118,12 @@ class FrenchBee:
             else None
         )
 
-    def get_return_availability(
-        self,
-        source: str,
-        destination: str,
-        passengers: PassengerInfo,
-        departure: datetime,
-    ) -> Dict[datetime, Flight]:
+    def get_return_availability(self, trip: Trip) -> Dict[datetime, Flight]:
         payload: List[FrenchBeeResponse] = self._make_search_request(
-            source,
-            destination,
-            passengers,
-            departure=departure,
+            source=trip.departure.location.code,
+            destination=trip.returns.location.code,
+            passengers=trip.passengers,
+            departure=trip.departure.date,
             returns=None,
             module="visible_newsearch_flights_departure_date",
         )
@@ -144,36 +136,16 @@ class FrenchBee:
             else None
         )
 
-    def get_departure_info_for(
-        self, source: str, destination: str, passengers: PassengerInfo, date: datetime
-    ) -> Flight:
-        info: Dict[datetime, Flight] = self.get_departure_availability(
-            source, destination, passengers
-        )
-        return info.get(date) if info else None
+    def get_departure_info_for(self, trip: Trip) -> Flight:
+        info: Dict[datetime, Flight] = self.get_departure_availability(trip)
+        return info.get(trip.departure.date) if info else None
 
-    def get_return_info_for(
-        self,
-        source: str,
-        destination: str,
-        passengers: PassengerInfo,
-        departure: datetime,
-        date: datetime,
-    ) -> Flight:
-        info: Dict[datetime, Flight] = self.get_return_availability(
-            source, destination, passengers, departure
-        )
-        return info.get(date) if info else None
+    def get_return_info_for(self, trip: Trip) -> Flight:
+        info: Dict[datetime, Flight] = self.get_return_availability(trip)
+        return info.get(trip.returns.date) if info else None
 
-    def get_flight_times(
-        self,
-        source: str,
-        destination: str,
-        passengers: PassengerInfo,
-        departure: datetime,
-        returns: datetime,
-    ) -> Dict[datetime, Flight]:
-        form_url, form_inputs = self._get_flight_times_form_parameters(source, destination, passengers, departure, returns)
+    def get_flight_times(self, trip: Trip) -> Dict[datetime, Flight]:
+        form_url, form_inputs = self._get_flight_times_form_parameters(trip)
 
         token: str = FrenchBeeReese84().token()
         self.session.cookies.set("reese84", token, domain="vols.frenchbee.com")
@@ -182,23 +154,21 @@ class FrenchBee:
         html_body: str = response.text
         script: Dict[str, Any] = self._get_flight_times_script(html_body)
 
-        bounds: List[Dict[str, Any]] = self._get_json_path(script, "$.pageDefinitionConfig.pageData.business.Availability.proposedBounds")
+        bounds: List[Dict[str, Any]] = self._get_json_path(
+            script,
+            "$.pageDefinitionConfig.pageData.business.Availability.proposedBounds",
+        )
         print(bounds)
 
     def _get_flight_times_form_parameters(
-        self,
-        source: str,
-        destination: str,
-        passengers: PassengerInfo,
-        departure: datetime,
-        returns: datetime,
+        self, trip: Trip
     ) -> Tuple[str, Dict[str, str]]:
         payload: List[FrenchBeeResponse] = self._make_search_request(
-            source,
-            destination,
-            passengers,
-            departure=departure,
-            returns=returns,
+            source=trip.departure.location.code,
+            destination=trip.returns.location.code,
+            passengers=trip.passengers,
+            departure=trip.departure.date,
+            returns=trip.returns.date,
             module="op",
         )
         resp: FrenchBeeResponse = next(
@@ -239,7 +209,7 @@ class FrenchBee:
         return json.loads(script)
 
     def _get_json_path(self, json_object: Any, path: str, default: Any = None) -> Any:
-        extractor = jsonpath.parse(path) # no type given
+        extractor = jsonpath.parse(path)  # no type given
         matches = extractor.find(json_object)
         if matches:
             if len(matches) == 1:

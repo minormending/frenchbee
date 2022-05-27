@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from frenchbee import FrenchBee, Flight, PassengerInfo
+from frenchbee import FrenchBee, Flight, PassengerInfo, Trip, DateAndLocation
+from frenchbee.models import Airport
 
 
 def main() -> None:
@@ -12,11 +13,13 @@ def main() -> None:
     parser.add_argument(
         "departure_date",
         type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
+        default=None,
         help="Departure date from origin airport. YYYY-mm-dd",
     )
     parser.add_argument(
         "return_date",
         type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
+        default=None,
         help="Return date from destination airport. YYYY-mm-dd",
     )
     parser.add_argument(
@@ -31,21 +34,21 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    passengers = PassengerInfo(Adults=args.passengers, Children=args.children)
+    trip: Trip(
+        departure=DateAndLocation(
+            date=args.departure_date, location=Airport(args.origin, name=None)
+        ),
+        returns=DateAndLocation(
+            date=args.return_date, location=Airport(args.destination, name=None)
+        ),
+        passengers=PassengerInfo(Adults=args.passengers, Children=args.children),
+    )
 
     client: FrenchBee = FrenchBee()
-    departure_info: Flight = client.get_departure_info_for(
-        args.origin, args.destination, passengers, args.departure_date
-    )
+    departure_info: Flight = client.get_departure_info_for(trip)
     if departure_info:
         print(departure_info.__dict__)
-        return_info: Flight = client.get_return_info_for(
-            args.origin,
-            args.destination,
-            passengers,
-            args.departure_date,
-            args.return_date,
-        )
+        return_info: Flight = client.get_return_info_for(trip)
         if return_info:
             print(return_info.__dict__)
             print(
@@ -54,13 +57,7 @@ def main() -> None:
                 + f"from {departure_info.departure_airport} to {return_info.departure_airport}"
             )
 
-            client.get_flight_times(
-                args.origin,
-                args.destination,
-                passengers,
-                args.departure_date,
-                args.return_date,
-            )
+            client.get_flight_times(trip)
 
 
 if __name__ == "__main__":

@@ -25,3 +25,16 @@ class Flight:
     price: float
     tax: float
     total: float
+
+
+@dataclass
+class DateAndLocation:
+    date: datetime
+    location: Airport
+
+
+@dataclass
+class Trip:
+    departure: DateAndLocation
+    returns: DateAndLocation
+    passengers: PassengerInfo
