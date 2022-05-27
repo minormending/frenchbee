@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 import json
-import demjson3
 from requests import Session, Response
 from typing import Any, List, Tuple, Union, Dict
 import re
 import html
+import jsonpath_ng as jsonpath
 
 from .reese84 import FrenchBeeReese84
 from .models import PassengerInfo, Flight
@@ -173,6 +173,26 @@ class FrenchBee:
         departure: datetime,
         returns: datetime,
     ) -> Dict[datetime, Flight]:
+        form_url, form_inputs = self._get_flight_times_form_parameters(source, destination, passengers, departure, returns)
+
+        token: str = FrenchBeeReese84().token()
+        self.session.cookies.set("reese84", token, domain="vols.frenchbee.com")
+        response: Response = self.session.post(form_url, data=form_inputs)
+
+        html_body: str = response.text
+        script: Dict[str, Any] = self._get_flight_times_script(html_body)
+
+        bounds: List[Dict[str, Any]] = self._get_json_path(script, "$.pageDefinitionConfig.pageData.business.Availability.proposedBounds")
+        print(bounds)
+
+    def _get_flight_times_form_parameters(
+        self,
+        source: str,
+        destination: str,
+        passengers: PassengerInfo,
+        departure: datetime,
+        returns: datetime,
+    ) -> Tuple[str, Dict[str, str]]:
         payload: List[FrenchBeeResponse] = self._make_search_request(
             source,
             destination,
@@ -199,34 +219,30 @@ class FrenchBee:
         if "EXTERNAL_ID" in form_inputs:
             form_inputs["EXTERNAL_ID"] = html.unescape(form_inputs["EXTERNAL_ID"])
 
-        reese84: FrenchBeeReese84 = FrenchBeeReese84()
-        token: str = reese84.token()
-        self.session.cookies.set("reese84", token, domain="vols.frenchbee.com")
-        response: Response = self.session.post(form_url, data=form_inputs)
-        
-        html_body: str = response.text
-        script_start: str = "PlnextPageProvider.init("
-        script_end: str = "pageEngine"
+        return (form_url, form_inputs)
 
+    def _get_flight_times_script(self, html_body: str) -> Dict[str, Any]:
+        script_start: str = "PlnextPageProvider.init("
         idx_start: int = html_body.index(script_start) + len(script_start)
-        idx_start = html_body.index("config", idx_start) # outer layer is not valid JSON
+        idx_start = html_body.index(
+            "config", idx_start
+        )  # outer layer is not valid JSON
         idx_start = html_body.index("{", idx_start)
 
+        script_end: str = "pageEngine"
         idx_end: int = html_body.index(script_end, idx_start)
-        idx_end = html_body.rindex("}", idx_start, idx_end) + 1 # walk backwards to find the end
+        idx_end = (
+            html_body.rindex("}", idx_start, idx_end) + 1
+        )  # walk backwards to find the end
 
         script: str = html_body[idx_start:idx_end]
-        with open("s.json", "w") as f:
-            f.write(script)
+        return json.loads(script)
 
-        init = json.loads(script)
-        with open("s.json", "w") as f:
-            f.write(json.dumps(init, indent=4, sort_keys=True))
-
-        
-        
-        """re_script = "PlnextPageProvider\.init\(({.*?,\s*?onePageNavEnabled\s*?:\s*?true\s*?})\)"
-        script_match = re.search(re_script, response.text)
-        if script_match:
-                """
-
+    def _get_json_path(self, json_object: Any, path: str, default: Any = None) -> Any:
+        extractor = jsonpath.parse(path) # no type given
+        matches = extractor.find(json_object)
+        if matches:
+            if len(matches) == 1:
+                return matches[0].value
+            return [match.value for match in matches]
+        return default
