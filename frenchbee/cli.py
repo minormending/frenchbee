@@ -19,7 +19,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Get French Bee airline prices.")
     subparsers = parser.add_subparsers(dest="command")
 
-    data_parser = subparsers.add_parser("data", help="Get metadata about French Bee.")
+    data_parser = subparsers.add_parser("data", help="Get metadata about French Bee locations.")
     data_parser.add_argument(
         "--locations", action="store_true", help="Get all supported locations."
     )

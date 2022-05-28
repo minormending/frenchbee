@@ -94,7 +94,15 @@ class FrenchBee:
                     flight,
                 ) in days.items():  # key_day: str, flight: Dict[str, Any]
                     day: int = int(key_day)
-                    normalize[datetime(year, month, day)] = Flight(**flight)
+                    normalize[datetime(year, month, day)] = Flight(
+                        arrival_airport=flight.get("arrival_airport"),
+                        currency=flight.get("currency"),
+                        day=datetime.strptime(flight.get("day"), "%Y-%m-%d"),
+                        departure_airport=flight.get("departure_airport"),
+                        is_offer=flight.get("is_offer"),
+                        price=float(flight.get("price")),
+                        tax=float(flight.get("tax")),
+                    )
         return normalize
 
     def get_departure_availability(self, trip: Trip) -> Dict[datetime, Flight]:

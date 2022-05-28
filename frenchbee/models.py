@@ -53,7 +53,6 @@ class Flight:
     is_offer: bool
     price: float
     tax: float
-    total: float
 
     def json(self) -> Dict[str, Any]:
         return serialize_datetimes(minimize_dict(self.__dict__))
