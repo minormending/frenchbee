@@ -2,9 +2,9 @@
 Python client for finding French Bee airline prices.
 
 # Installation
-``
+```
 pip install frenchbee
-``
+```
 
 # Usage
 The [FrenchBeeData](frenchbee/data.py) class is used for looking up travel location codes that French Bee airlines supports. Note that locations include airports and train stations. Available methods are:
@@ -261,7 +261,7 @@ options:
 {'code': 'QXG', 'name': 'Angers St-Laud TGV (Railway Station), France '}
 ```
 
-# Get Flight Times
+## Get Flight Times
 ```
 >>> frenchbee-cli flight EWR ORY 2022-10-06 2022-10-10
 
