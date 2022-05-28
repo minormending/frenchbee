@@ -11,8 +11,6 @@ from .reese84 import FrenchBeeReese84
 from .models import Location, PassengerInfo, Flight, DateAndLocation, Segment, Trip
 
 
-
-
 @dataclass
 class FrenchBeeResponse:
     command: str

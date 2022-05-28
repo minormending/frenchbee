@@ -3,21 +3,27 @@ Python client for finding French Bee airline prices.
 
 # Usage
 ```
-usage: frenchbee.py [-h] [--passengers PASSENGERS] [--children CHILDREN] origin departure_date destination return_date
+usage: frenchbee-cli [-h] {data,flight} ...
 
 Get French Bee airline prices.
 
 positional arguments:
-  origin                Origin airport.
-  departure_date        Departure date from origin airport. YYYY-mm-dd
-  destination           Destination airport.
-  return_date           Return date from destination airport. YYYY-mm-dd
+  {data,flight}
+    data         Get metadata about French Bee.
+    flight       Get flight information.
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --passengers PASSENGERS
-                        Number of adult passengers. default=1
-  --children CHILDREN   Number of child passengers. default=0
+options:
+  -h, --help     show this help message and exit
+```
+
+```
+> frenchbee-cli data --help     
+usage: frenchbee-cli data [-h] [--locations]
+
+options:
+  -h, --help   show this help message and exit
+  --locations  Get all supported locations.
+
 ```
 
 # Example

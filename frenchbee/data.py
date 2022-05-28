@@ -4,10 +4,6 @@ from requests import Response, Session
 
 from .models import Location
 
-import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 
 class FrenchBeeData:
     def __init__(self) -> None:
@@ -17,10 +13,8 @@ class FrenchBeeData:
             "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
             "Cookie": "base_host=frenchbee.com; market_lang=en; site_origin=us.frenchbee.com",
         }
-        self.session.proxies = {"http": "127.0.0.1:8888", "https": "127.0.0.1:8888"}
-        self.session.verify = False
 
-    def get_airports(self) -> Iterable[Location]:
+    def get_locations(self) -> Iterable[Location]:
         url: str = f"https://us.frenchbee.com/en"
         resp: Response = self.session.get(url)
 
@@ -33,9 +27,3 @@ class FrenchBeeData:
             code: str = source_tag["value"]
             name: str = source_tag.getText()
             yield Location(code, name)
-
-
-if __name__ == "__main__":
-    data = FrenchBeeData()
-    for airport in data.get_airports():
-        print(airport.__dict__)

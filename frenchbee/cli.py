@@ -1,7 +1,15 @@
 from datetime import datetime
+from typing import List
 
-from frenchbee import FrenchBee, Flight, PassengerInfo, Trip, DateAndLocation
-from frenchbee.models import Location
+from frenchbee import (
+    FrenchBee,
+    Flight,
+    PassengerInfo,
+    Trip,
+    DateAndLocation,
+    Location,
+    FrenchBeeData,
+)
 
 
 def main() -> None:
@@ -9,31 +17,46 @@ def main() -> None:
     from pprint import pprint
 
     parser = argparse.ArgumentParser(description="Get French Bee airline prices.")
-    parser.add_argument("origin", help="Origin airport.")
-    parser.add_argument("destination", help="Destination airport.")
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command")
+
+    data_parser = subparsers.add_parser("data", help="Get metadata about French Bee.")
+    data_parser.add_argument(
+        "--locations", action="store_true", help="Get all supported locations."
+    )
+
+    flight_parser = subparsers.add_parser("flight", help="Get flight information.")
+    flight_parser.add_argument("origin", help="Origin airport.")
+    flight_parser.add_argument("destination", help="Destination airport.")
+    flight_parser.add_argument(
         "departure_date",
         type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
         default=None,
         help="Departure date from origin airport. YYYY-mm-dd",
     )
-    parser.add_argument(
+    flight_parser.add_argument(
         "return_date",
         type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
         default=None,
         help="Return date from destination airport. YYYY-mm-dd",
     )
-    parser.add_argument(
+    flight_parser.add_argument(
         "--passengers",
         type=int,
         default=1,
         help="Number of adult passengers. default=1",
     )
-    parser.add_argument(
+    flight_parser.add_argument(
         "--children", type=int, default=0, help="Number of child passengers. default=0"
     )
 
     args = parser.parse_args()
+
+    if args.command == "data":
+        data_client: FrenchBeeData = FrenchBeeData()
+        data: List[Location] = list(data_client.get_locations())
+        for location in data:
+            print(location.json())
+        exit()
 
     trip: Trip = Trip(
         origin_depart=DateAndLocation(
