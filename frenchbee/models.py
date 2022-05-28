@@ -69,11 +69,32 @@ class DateAndLocation:
         value["location"] = self.location.json()
         return serialize_datetimes(minimize_dict(value))
 
+
+@dataclass
+class Segment:
+    airline_code: str
+    airline_name: str
+    flight_num: str
+    duration: int
+    start: DateAndLocation
+    end: DateAndLocation
+
+    def json(self) -> Dict[str, Any]:
+        value: Dict[str, Any] = dict(self.__dict__)
+        value["start"] = self.start.json()
+        value["end"] = self.end.json()
+        return minimize_dict(value)
+
+
 @dataclass
 class Trip:
     origin_depart: DateAndLocation
     destination_return: DateAndLocation
     passengers: PassengerInfo
+
+    origin_segments: List[List[Segment]] = None
+    destination_segments: List[List[Segment]] = None
+
     def json(self) -> Dict[str, Any]:
         value: Dict[str, Any] = dict(self.__dict__)
         value["origin_depart"] = self.origin_depart.json()
