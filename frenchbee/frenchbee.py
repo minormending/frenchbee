@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from datetime import datetime
-import requests
-from typing import List, Union, Dict
+import json
+from requests import Session, Response
+from typing import Any, Iterable, List, Tuple, Union, Dict
+import re
+import html
+import jsonpath_ng as jsonpath
 
-
-@dataclass
-class PassengerInfo:
-    Adults: int
-    Children: int = 0
-    Infants: int = 0
+from .reese84 import FrenchBeeReese84
+from .models import Location, PassengerInfo, Flight, DateAndLocation, Segment, Trip
 
 
 @dataclass
@@ -19,47 +19,41 @@ class FrenchBeeResponse:
     args: List[
         Union[str, dict]
     ]  # dict(departure => [year => { month => { day => { data... }} }])
-
-
-@dataclass
-class Flight:
-    arrival_airport: str
-    currency: str
-    day: datetime
-    departure_airport: str
-    is_offer: bool
-    price: float
-    tax: float
-    total: float
+    data: str
 
 
 class FrenchBee:
     def __init__(self) -> None:
-        self.session = requests.Session()
+        self.session = Session()
         self.session.headers = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
             "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Cookie": "base_host=frenchbee.com; market_lang=en; site_origin=us.frenchbee.com",
         }
+        self.session.cookies["base_host"] = "frenchbee.com"
+        self.session.cookies["market_lang"] = "en"
+        self.session.cookies["site_origin"] = "us.frenchbee.com"
 
-    def _make_request(
+    def _make_search_request(
         self,
         source: str,
         destination: str,
         passengers: PassengerInfo,
-        departure_date: datetime,
+        departure: datetime,
+        returns: datetime,
         module: str,
     ) -> List[FrenchBeeResponse]:
-        url = "https://us.frenchbee.com/en?ajax_form=1"
-        departure_date_str = f"{departure_date:%Y-%m-%d}" if departure_date else ""
-        payload = {
+        url: str = "https://us.frenchbee.com/en?ajax_form=1"
+        departure_date: str = f"{departure:%Y-%m-%d}" if departure else ""
+        return_date: str = f"{returns:%Y-%m-%d}" if returns else ""
+        payload: Dict[str, Any] = {
             "visible_newsearch_flights_travel_type": "R",
             "visible_newsearch_flights_from": source,
             "visible_newsearch_flights_to": destination,
             "newsearch_flights_travel_type": "R",
             "newsearch_flights_from": source,
             "newsearch_flights_to": destination,
-            "newsearch_flights_departure_date": departure_date_str,
+            "newsearch_flights_departure_date": departure_date,
+            "newsearch_flights_return_date": return_date,
             "adults-count": passengers.Adults,
             "children-count": passengers.Children,
             "infants-count": passengers.Infants,
@@ -67,127 +61,212 @@ class FrenchBee:
             "form_id": "frenchbee-amadeus-search-flights-form",
             "_triggering_element_name": module,
         }
-        response = self.session.post(url, data=payload)
-        return [FrenchBeeResponse(**i) for i in response.json()]
+        response: Response = self.session.post(url, data=payload)
+        return [
+            FrenchBeeResponse(
+                command=resp.get("command"),
+                method=resp.get("method"),
+                selector=resp.get("selector"),
+                args=resp.get("args") or [],
+                data=resp.get("data"),
+            )
+            for resp in response.json()
+        ]
 
-    def _normalize_response(self, response: dict) -> Dict[datetime, Flight]:
+    def _normalize_response(self, response: Dict[str, Any]) -> Dict[datetime, Flight]:
         if not response:
             return None
-        normalize = {}
-        for year_str, months in response.items():
-            year = int(year_str)
-            for month_str, days in months.items():
-                month = int(month_str)
-                for day_str, day_response in days.items():
-                    day = int(day_str)
-                    normalize[datetime(year, month, day)] = Flight(**day_response)
+        normalize: Dict[datetime, Flight] = {}
+        for (
+            key_year,
+            months,
+        ) in (
+            response.items()
+        ):  # key_year: str, months: Dict[str, Dict[str, Dict[str, Any]]]
+            year: int = int(key_year)
+            for (
+                key_month,
+                days,
+            ) in months.items():  # key_month: str, days: Dict[str, Dict[str, Any]]
+                month: int = int(key_month)
+                for (
+                    key_day,
+                    flight,
+                ) in days.items():  # key_day: str, flight: Dict[str, Any]
+                    day: int = int(key_day)
+                    normalize[datetime(year, month, day)] = Flight(**flight)
         return normalize
 
-    def get_departure_availability(
-        self, source: str, destination: str, passengers: PassengerInfo
-    ) -> Dict[datetime, Flight]:
-        payload = self._make_request(
-            source,
-            destination,
-            passengers,
-            departure_date=None,
+    def get_departure_availability(self, trip: Trip) -> Dict[datetime, Flight]:
+        payload: List[FrenchBeeResponse] = self._make_search_request(
+            source=trip.origin_depart.location.code,
+            destination=trip.destination_return.location.code,
+            passengers=trip.passengers,
+            departure=None,
+            returns=None,
             module="visible_newsearch_flights_to",
         )
-        info = next(
-            filter(lambda i: i.args[0] == "departureCalendarPriceIsReady", payload),
+        info: FrenchBeeResponse = next(
+            filter(lambda r: r.args[0] == "departureCalendarPriceIsReady", payload),
             None,
         )
         return (
-            self._normalize_response(info.args[1]["departure"])
-            if len(info.args) < 2 or info.args[1]
+            self._normalize_response(info.args[1].get("departure"))
+            if len(info.args) >= 2 and info.args[1]
             else None
         )
 
-    def get_return_availability(
-        self,
-        source: str,
-        destination: str,
-        passengers: PassengerInfo,
-        departure: datetime,
-    ) -> Dict[datetime, Flight]:
-        payload = self._make_request(
-            source,
-            destination,
-            passengers,
-            departure_date=departure,
+    def get_return_availability(self, trip: Trip) -> Dict[datetime, Flight]:
+        payload: List[FrenchBeeResponse] = self._make_search_request(
+            source=trip.origin_depart.location.code,
+            destination=trip.destination_return.location.code,
+            passengers=trip.passengers,
+            departure=trip.origin_depart.date,
+            returns=None,
             module="visible_newsearch_flights_departure_date",
         )
-        info = next(
+        info: FrenchBeeResponse = next(
             filter(lambda i: i.args[0] == "returnCalendarPriceIsReady", payload), None
         )
         return (
-            self._normalize_response(info.args[1]["return"])
-            if len(info.args) < 2 or info.args[1]
+            self._normalize_response(info.args[1].get("return"))
+            if len(info.args) >= 2 and info.args[1]
             else None
         )
 
-    def get_departure_info_for(
-        self, source: str, destination: str, passengers: PassengerInfo, date: datetime
-    ) -> Flight:
-        info = self.get_departure_availability(source, destination, passengers)
-        return info.get(date, None) if info else None
+    def get_departure_info_for(self, trip: Trip) -> Flight:
+        info: Dict[datetime, Flight] = self.get_departure_availability(trip)
+        return info.get(trip.origin_depart.date) if info else None
 
-    def get_return_info_for(
-        self,
-        source: str,
-        destination: str,
-        passengers: PassengerInfo,
-        departure: datetime,
-        date: datetime,
-    ) -> Flight:
-        info = self.get_return_availability(source, destination, passengers, departure)
-        return info.get(date, None) if info else None
+    def get_return_info_for(self, trip: Trip) -> Flight:
+        info: Dict[datetime, Flight] = self.get_return_availability(trip)
+        return info.get(trip.destination_return.date) if info else None
 
+    def get_flight_times(self, trip: Trip) -> Trip:
+        form_url, form_inputs = self._get_flight_times_form_parameters(trip)
 
-if __name__ == "__main__":
-    import argparse
+        token: str = FrenchBeeReese84().token()
+        self.session.cookies.set("reese84", token, domain="vols.frenchbee.com")
+        response: Response = self.session.post(form_url, data=form_inputs)
 
-    parser = argparse.ArgumentParser(description="Get French Bee airline prices.")
-    parser.add_argument("origin", help="Origin airport.")
-    parser.add_argument(
-        "departure_date",
-        type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
-        help="Departure date from origin airport. YYYY-mm-dd",
-    )
-    parser.add_argument("destination", help="Destination airport.")
-    parser.add_argument(
-        "return_date",
-        type=lambda s: datetime.strptime(s, "%Y-%m-%d"),
-        help="Return date from destination airport. YYYY-mm-dd",
-    )
-    parser.add_argument(
-        "--passengers", type=int, default=1, help="Number of adult passengers. default=1"
-    )
-    parser.add_argument(
-        "--children", type=int, default=0, help="Number of child passengers. default=0"
-    )
+        html_body: str = response.text
+        script: Dict[str, Any] = self._get_flight_times_script(html_body)
+        with open("s.json", "w") as f:
+            f.write(json.dumps(script, indent=4, sort_keys=True))
 
-    args = parser.parse_args()
-
-    passengers = PassengerInfo(Adults=args.passengers, Children=args.children)
-
-    client = FrenchBee()
-    departure_info = client.get_departure_info_for(
-        args.origin, args.destination, passengers, args.departure_date
-    )
-    if departure_info:
-        print(departure_info)
-        return_info = client.get_return_info_for(
-            args.origin,
-            args.destination,
-            passengers,
-            args.departure_date,
-            args.return_date,
+        bounds: List[Dict[str, Any]] = self._get_json_path(
+            script,
+            "$.pageDefinitionConfig.pageData.business.Availability.proposedBounds",
         )
-        if return_info:
-            print(return_info)
-            print(
-                f"Total price: ${departure_info.price + return_info.price} " +
-                f"for {departure_info.day} to {return_info.day} " + 
-                f"from {departure_info.departure_airport} to {return_info.departure_airport}"
-            )
+        departure_options: List[Dict[str, Any]] = bounds[0].get(
+            "proposedFlightsGroup", []
+        )
+        return_options: List[Dict[str, Any]] = bounds[1].get("proposedFlightsGroup", [])
+
+        trip.origin_segments = list(self._get_segment_options(departure_options))
+        trip.destination_segments = list(self._get_segment_options(return_options))
+
+        return trip
+
+    def _get_flight_times_form_parameters(
+        self, trip: Trip
+    ) -> Tuple[str, Dict[str, str]]:
+        payload: List[FrenchBeeResponse] = self._make_search_request(
+            source=trip.origin_depart.location.code,
+            destination=trip.destination_return.location.code,
+            passengers=trip.passengers,
+            departure=trip.origin_depart.date,
+            returns=trip.destination_return.date,
+            module="op",
+        )
+        resp: FrenchBeeResponse = next(
+            filter(lambda i: i.command == "insert", payload), None
+        )
+
+        form_match: re.Match = re.search(
+            '\<form[^\>]*action="([^"]+)"[^\>]*>', resp.data
+        )
+        if not form_match:
+            return
+        form_url: str = form_match.group(1)
+
+        input_match: List[Tuple[str, str]] = re.findall(
+            '\<input[^\>]*name="([^"]+)"[^\>]*value="([^"]+)"[^\>]*>', resp.data
+        )
+        form_inputs: Dict[str, str] = {key: value for key, value in input_match}
+        if "EXTERNAL_ID" in form_inputs:
+            form_inputs["EXTERNAL_ID"] = html.unescape(form_inputs["EXTERNAL_ID"])
+
+        return (form_url, form_inputs)
+
+    def _get_flight_times_script(self, html_body: str) -> Dict[str, Any]:
+        script_start: str = "PlnextPageProvider.init("
+        idx_start: int = html_body.index(script_start) + len(script_start)
+        idx_start = html_body.index(
+            "config", idx_start
+        )  # outer layer is not valid JSON
+        idx_start = html_body.index("{", idx_start)
+
+        script_end: str = "pageEngine"
+        idx_end: int = html_body.index(script_end, idx_start)
+        idx_end = (
+            html_body.rindex("}", idx_start, idx_end) + 1
+        )  # walk backwards to find the end
+
+        script: str = html_body[idx_start:idx_end]
+        return json.loads(script)
+
+    def _get_segment_options(
+        self, options: List[Dict[str, Any]]
+    ) -> Iterable[List[Segment]]:
+        for option in options:
+            segments_for_option: List[Segment] = option.get("segments", [])
+            segments: List[Segment] = []
+            for segment_option in segments_for_option:
+                segment: Segment = Segment(
+                    airline_code=segment_option.get("airline", {}).get("code"),
+                    airline_name=segment_option.get("airline", {}).get("name"),
+                    flight_num=segment_option.get("flightNumber"),
+                    duration=int(segment_option.get("segmentTime") or "0"),
+                    start=DateAndLocation(
+                        date=self._get_datetime_gmt(segment_option.get("beginDateGMT")),
+                        location=Location(
+                            code=segment_option.get("beginLocation", {}).get(
+                                "locationCode"
+                            ),
+                            name=segment_option.get("beginLocation", {}).get(
+                                "locationName"
+                            ),
+                            terminal=segment_option.get("beginTerminal"),
+                            transport=segment_option.get("equipment", {}).get("name"),
+                        ),
+                    ),
+                    end=DateAndLocation(
+                        date=self._get_datetime_gmt(segment_option.get("endDateGMT")),
+                        location=Location(
+                            code=segment_option.get("endLocation", {}).get(
+                                "locationCode"
+                            ),
+                            name=segment_option.get("endLocation", {}).get(
+                                "locationName"
+                            ),
+                            terminal=segment_option.get("endTerminal"),
+                        ),
+                    ),
+                )
+                segments.append(segment)
+            yield segments
+
+    def _get_json_path(self, json_object: Any, path: str, default: Any = None) -> Any:
+        extractor = jsonpath.parse(path)  # no type given
+        matches = extractor.find(json_object)
+        if matches:
+            if len(matches) == 1:
+                return matches[0].value
+            return [match.value for match in matches]
+        return default
+
+    def _get_datetime_gmt(self, value: str, default: Any = None) -> datetime:
+        if value:
+            return datetime.strptime(value, "%b %d, %Y %I:%M:%S %p")
+        return default
