@@ -1,13 +1,15 @@
-FROM python:3.8
+FROM python:3.10-slim
 
-RUN mkdir /app 
-COPY frenchbee/ /app
-COPY pyproject.toml /app 
+RUN pip install poetry
+RUN poetry config virtualenvs.create false
+
+RUN mkdir /app
+COPY pyproject.toml /app
 WORKDIR /app
 
-ENV PYTHONPATH=${PYTHONPATH}:${PWD} 
-RUN pip3 install poetry
-RUN poetry config virtualenvs.create false
+COPY README.md /app 
+RUN mkdir /app/frenchbee
+COPY frenchbee /app/frenchbee
 RUN poetry install --no-dev
 
-ENTRYPOINT ["python", "./frenchbee.py"]
+ENTRYPOINT ["frenchbee-cli"]
