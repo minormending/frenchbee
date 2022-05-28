@@ -1,11 +1,12 @@
 from datetime import datetime
 
 from frenchbee import FrenchBee, Flight, PassengerInfo, Trip, DateAndLocation
-from frenchbee.models import Airport
+from frenchbee.models import Location
 
 
 def main() -> None:
     import argparse
+    from pprint import pprint
 
     parser = argparse.ArgumentParser(description="Get French Bee airline prices.")
     parser.add_argument("origin", help="Origin airport.")
@@ -34,12 +35,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    trip: Trip(
-        departure=DateAndLocation(
-            date=args.departure_date, location=Airport(args.origin, name=None)
+    trip: Trip = Trip(
+        origin_depart=DateAndLocation(
+            date=args.departure_date, location=Location(args.origin)
         ),
-        returns=DateAndLocation(
-            date=args.return_date, location=Airport(args.destination, name=None)
+        destination_return=DateAndLocation(
+            date=args.return_date, location=Location(args.destination)
         ),
         passengers=PassengerInfo(Adults=args.passengers, Children=args.children),
     )
@@ -47,17 +48,18 @@ def main() -> None:
     client: FrenchBee = FrenchBee()
     departure_info: Flight = client.get_departure_info_for(trip)
     if departure_info:
-        print(departure_info.__dict__)
+        print(departure_info.json())
         return_info: Flight = client.get_return_info_for(trip)
         if return_info:
-            print(return_info.__dict__)
+            print(return_info.json())
             print(
                 f"Total price: ${departure_info.price + return_info.price} "
                 + f"for {departure_info.day} to {return_info.day} "
                 + f"from {departure_info.departure_airport} to {return_info.departure_airport}"
             )
 
-            client.get_flight_times(trip)
+            trip = client.get_flight_times(trip)
+            pprint(trip.json())
 
 
 if __name__ == "__main__":
