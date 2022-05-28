@@ -10,9 +10,14 @@ class PassengerInfo:
 
 
 @dataclass
-class Airport:
+class Location:
     code: str
-    name: str
+    name: str = None
+    terminal: str = None
+    transport: str = None
+
+    def json(self) -> Dict[str, Any]:
+        return minimize_dict(self.__dict__)
 
 
 @dataclass
@@ -30,11 +35,11 @@ class Flight:
 @dataclass
 class DateAndLocation:
     date: datetime
-    location: Airport
+    location: Location
 
 
 @dataclass
 class Trip:
-    departure: DateAndLocation
-    returns: DateAndLocation
+    origin_depart: DateAndLocation
+    destination_return: DateAndLocation
     passengers: PassengerInfo

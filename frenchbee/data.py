@@ -2,7 +2,7 @@ from typing import Iterable
 from bs4 import BeautifulSoup, ResultSet, Tag
 from requests import Response, Session
 
-from .models import Airport
+from .models import Location
 
 import urllib3
 
@@ -20,7 +20,7 @@ class FrenchBeeData:
         self.session.proxies = {"http": "127.0.0.1:8888", "https": "127.0.0.1:8888"}
         self.session.verify = False
 
-    def get_airports(self) -> Iterable[Airport]:
+    def get_airports(self) -> Iterable[Location]:
         url: str = f"https://us.frenchbee.com/en"
         resp: Response = self.session.get(url)
 
@@ -32,7 +32,7 @@ class FrenchBeeData:
         for source_tag in source_tags:
             code: str = source_tag["value"]
             name: str = source_tag.getText()
-            yield Airport(code, name)
+            yield Location(code, name)
 
 
 if __name__ == "__main__":
